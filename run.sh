@@ -29,14 +29,8 @@ sudo ip addr add $ip_address dev $device_name
 # Bring the TUN link up
 sudo ip link set up dev $device_name
 
-# Clean up function for graceful shutdown
-cleanup() {
-	kill $pid
-	exit
-}
-
-# Run "cleanup" function when SIGINT or SIGTERM is received
-trap cleanup SIGINT SIGTERM
+# Terminating the program when SIGTERM, SIGINT or SIGKILL is received
+trap "kill $pid" SIGTERM SIGINT SIGKILL
 
 # Wait for the program to finish
 wait $pid
