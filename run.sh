@@ -31,18 +31,10 @@ sudo ip link set up dev $device_name
 
 # Clean up function for graceful shutdown
 cleanup() {
-    # Bring the TUN link down
-    sudo ip link set down dev $device_name
-
-    # Remove the assigned IPv4 address from the TUN interface
-    sudo ip addr del $ip_address dev $device_name
-
-	# Kill the process
 	kill $pid
-
-    exit
+	exit
 }
-#
+
 # Run "cleanup" function when SIGINT or SIGTERM is received
 trap cleanup SIGINT SIGTERM
 
