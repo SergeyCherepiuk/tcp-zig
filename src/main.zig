@@ -8,7 +8,7 @@ pub fn main() !void {
     const device_name = try args.parseArgs(&process_args);
     const tun_file = try tun.openTun(device_name);
 
-    const buf_size = 1504; // MTU + 4 bytes for headers
+    const buf_size = 1500;
     var buf: [buf_size]u8 = undefined;
     while (true) {
         const bytes = try tun_file.read(&buf);
