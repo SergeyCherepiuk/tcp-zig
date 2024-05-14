@@ -1,7 +1,6 @@
 const std = @import("std");
 const fs = std.fs;
 const linux = std.os.linux;
-const utils = @import("utils.zig");
 const c = @cImport({
     @cInclude("linux/if.h");
     @cInclude("linux/if_tun.h");
@@ -22,7 +21,7 @@ pub fn openTun(device_name: []const u8) OpenTunError!fs.File {
     };
 
     const ifr = linux.ifreq{
-        .ifrn = .{ .name = utils.stringToFixedArray(device_name, c.IFNAMSIZ) },
+        .ifrn = .{ .name = stringToFixedArray(device_name, c.IFNAMSIZ) },
         .ifru = .{ .flags = c.IFF_TUN | c.IFF_NO_PI },
     };
 
@@ -32,6 +31,12 @@ pub fn openTun(device_name: []const u8) OpenTunError!fs.File {
     }
 
     return tun_file;
+}
+
+fn stringToFixedArray(string: []const u8, comptime size: usize) [size]u8 {
+    var buf: [size]u8 = [_]u8{0} ** size;
+    std.mem.copyForwards(u8, &buf, string);
+    return buf;
 }
 
 fn ioctlError(code: usize) OpenTunError!void {
