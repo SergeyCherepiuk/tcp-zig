@@ -22,7 +22,7 @@ pub fn openTun(device_name: []const u8) OpenTunError!fs.File {
 
     const ifr = linux.ifreq{
         .ifrn = .{ .name = stringToFixedArray(device_name, c.IFNAMSIZ) },
-        .ifru = .{ .flags = c.IFF_TUN | c.IFF_NO_PI },
+        .ifru = .{ .flags = c.IFF_TUN },
     };
 
     const ioctl_code = linux.ioctl(tun_file.handle, TUNSETIFF, @intFromPtr(&ifr));
