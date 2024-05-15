@@ -4,6 +4,7 @@ const mem = std.mem;
 const args = @import("args.zig");
 const tun = @import("tun.zig");
 const ip = @import("ip.zig");
+const tcp = @import("tcp.zig");
 
 pub fn main() !void {
     var process_args = process.args();
@@ -16,8 +17,8 @@ pub fn main() !void {
         const bytes = try tun_file.read(&buf);
         const message = buf[0..bytes];
 
-        const protocol = (@as(u16, message[2]) << 8) + message[3];
-        if (protocol != 0x0800) {
+        const ethernet_protocol = (@as(u16, message[2]) << 8) + message[3];
+        if (ethernet_protocol != 0x0800) {
             continue;
         }
 
