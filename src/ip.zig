@@ -1,4 +1,6 @@
-pub const Ip4Header = packed struct {
+// TODO: Make the struct packed when Zig resolves the issue with
+// endianness and bit-order. Use @bitCast to create Ip4Header.
+pub const Ip4Header = struct {
     version: u4,
     header_length: u4,
     type_of_service: u8,
