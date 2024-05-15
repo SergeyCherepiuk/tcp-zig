@@ -1,12 +1,12 @@
-// TODO: Make the struct packed when Zig resolves the issue with
-// endianness and bit-order. Use @bitCast to create Ip4Header.
-pub const Ip4Header = struct {
+const std = @import("std");
+
+pub const Ip4Header = packed struct(u160) {
     version: u4,
     header_length: u4,
     type_of_service: u8,
     total_length: u16,
     id: u16,
-    flags: u3,
+    flags: Ip4HeaderFlags,
     fragment_offset: u13,
     ttl: u8,
     protocol: u8,
@@ -32,6 +32,12 @@ pub const Ip4Header = struct {
     }
 };
 
+pub const Ip4HeaderFlags = packed struct(u3) {
+    _: u1 = 0,
+    df: bool = true,
+    mf: bool = false,
+};
+
 fn intFromBytes(comptime T: type, slice: []const u8) T {
     var sum: T = 0;
     for (0.., slice) |i, el| {
@@ -39,4 +45,24 @@ fn intFromBytes(comptime T: type, slice: []const u8) T {
         sum += @as(T, el) << @intCast(slf);
     }
     return sum;
+}
+
+test "Ip4Header memory layout" {
+    try std.testing.expectEqual(0, @bitOffsetOf(Ip4Header, "version"));
+    try std.testing.expectEqual(4, @bitOffsetOf(Ip4Header, "header_length"));
+    try std.testing.expectEqual(8, @bitOffsetOf(Ip4Header, "type_of_service"));
+    try std.testing.expectEqual(16, @bitOffsetOf(Ip4Header, "total_length"));
+    try std.testing.expectEqual(32, @bitOffsetOf(Ip4Header, "id"));
+    try std.testing.expectEqual(48, @bitOffsetOf(Ip4Header, "flags"));
+    try std.testing.expectEqual(51, @bitOffsetOf(Ip4Header, "fragment_offset"));
+    try std.testing.expectEqual(64, @bitOffsetOf(Ip4Header, "ttl"));
+    try std.testing.expectEqual(72, @bitOffsetOf(Ip4Header, "protocol"));
+    try std.testing.expectEqual(80, @bitOffsetOf(Ip4Header, "header_checksum"));
+    try std.testing.expectEqual(96, @bitOffsetOf(Ip4Header, "source_address"));
+    try std.testing.expectEqual(128, @bitOffsetOf(Ip4Header, "destination_address"));
+}
+
+test "Ip4HeaderFlags memory layout" {
+    try std.testing.expectEqual(1, @bitOffsetOf(Ip4HeaderFlags, "df"));
+    try std.testing.expectEqual(2, @bitOffsetOf(Ip4HeaderFlags, "mf"));
 }
