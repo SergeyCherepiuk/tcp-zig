@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils.zig");
 
 pub const Ip4Header = packed struct(u160) {
     version: u4,
@@ -19,15 +20,18 @@ pub const Ip4Header = packed struct(u160) {
             .version = @intCast(bytes[0] >> 4 & 0xF),
             .header_length = @intCast(bytes[0] & 0xF),
             .type_of_service = bytes[1],
-            .total_length = intFromBytes(u16, bytes[2..4]),
-            .id = intFromBytes(u16, bytes[4..6]),
-            .flags = @intCast(bytes[6] >> 5),
-            .fragment_offset = intFromBytes(u13, &[_]u8{ bytes[6] & 0x1F, bytes[7] }),
+            .total_length = utils.intFromBytes(u16, bytes[2..4]),
+            .id = utils.intFromBytes(u16, bytes[4..6]),
+            .flags = Ip4HeaderFlags{
+                .df = (bytes[6] >> 5) & 0x2 != 0,
+                .mf = (bytes[6] >> 5) & 0x1 != 0,
+            },
+            .fragment_offset = utils.intFromBytes(u13, &[_]u8{ bytes[6] & 0x1F, bytes[7] }),
             .ttl = bytes[8],
             .protocol = bytes[9],
-            .header_checksum = intFromBytes(u16, bytes[10..12]),
-            .source_address = intFromBytes(u32, bytes[12..16]),
-            .destination_address = intFromBytes(u32, bytes[16..20]),
+            .header_checksum = utils.intFromBytes(u16, bytes[10..12]),
+            .source_address = utils.intFromBytes(u32, bytes[12..16]),
+            .destination_address = utils.intFromBytes(u32, bytes[16..20]),
         };
     }
 };
@@ -37,15 +41,6 @@ pub const Ip4HeaderFlags = packed struct(u3) {
     df: bool = true,
     mf: bool = false,
 };
-
-fn intFromBytes(comptime T: type, slice: []const u8) T {
-    var sum: T = 0;
-    for (0.., slice) |i, el| {
-        const slf = (slice.len - i - 1) * 8;
-        sum += @as(T, el) << @intCast(slf);
-    }
-    return sum;
-}
 
 test "Ip4Header memory layout" {
     try std.testing.expectEqual(0, @bitOffsetOf(Ip4Header, "version"));

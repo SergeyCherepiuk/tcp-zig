@@ -1,14 +1,12 @@
 const std = @import("std");
 const process = std.process;
-const mem = std.mem;
-const args = @import("args.zig");
-const tun = @import("tun.zig");
-const ip = @import("ip.zig");
-const tcp = @import("tcp.zig");
+const tun = @import("net/tun.zig");
+const ip = @import("net/ip.zig");
+const tcp = @import("net/tcp.zig");
 
 pub fn main() !void {
     var process_args = process.args();
-    const device_name = try args.parseArgs(&process_args);
+    const device_name = try parseArgs(&process_args);
     const tun_file = try tun.openTun(device_name);
 
     const buf_size = 1504; // Default MTU + 4 bytes for headers (flags and protocol)
@@ -25,4 +23,14 @@ pub fn main() !void {
         const ip_header = ip.Ip4Header.new(message[4..24]);
         std.debug.print("{any}\n", .{ip_header});
     }
+}
+
+const ParseArgs = error{NoDeviceName};
+
+fn parseArgs(iterator: *process.ArgIterator) ParseArgs![]const u8 {
+    _ = iterator.skip();
+    if (iterator.next()) |device_name| {
+        return device_name;
+    }
+    return error.NoDeviceName;
 }

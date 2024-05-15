@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils.zig");
 
 pub const TcpHeader = packed struct(u160) {
     source_port: u16,
