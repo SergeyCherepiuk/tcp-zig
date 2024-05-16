@@ -20,7 +20,7 @@ pub fn main() !void {
             continue;
         }
 
-        const ip_header = ip.Ip4Header.new(message[4..24]);
+        const ip_header = ip.Ip4Header.new(message[4..24].*);
         std.debug.print("{any}\n", .{ip_header});
     }
 }

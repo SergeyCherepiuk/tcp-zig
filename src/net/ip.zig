@@ -15,7 +15,7 @@ pub const Ip4Header = packed struct(u160) {
     source_address: u32,
     destination_address: u32,
 
-    pub fn new(bytes: *[20]u8) Ip4Header {
+    pub fn new(bytes: [20]u8) Ip4Header {
         return Ip4Header{
             .version = @intCast(bytes[0] >> 4 & 0xF),
             .header_length = @intCast(bytes[0] & 0xF),
@@ -60,4 +60,32 @@ test "Ip4Header memory layout" {
 test "Ip4HeaderFlags memory layout" {
     try std.testing.expectEqual(1, @bitOffsetOf(Ip4HeaderFlags, "df"));
     try std.testing.expectEqual(2, @bitOffsetOf(Ip4HeaderFlags, "mf"));
+}
+
+test "Ip4Header parsing from bytes" {
+    const bytes = [20]u8{
+        0b01000101, 0b00000000, 0b00000000, 0b10000000,
+        0b11001011, 0b10110101, 0b01000000, 0b00000000,
+        0b01000000, 0b00000001, 0b11011001, 0b01110011,
+        0b11000000, 0b10101000, 0b00001010, 0b00000001,
+        0b11000000, 0b10101000, 0b00001010, 0b00000010,
+    };
+
+    const actual = Ip4Header.new(bytes);
+    const expected = Ip4Header{
+        .version = 4,
+        .header_length = 5,
+        .type_of_service = 0,
+        .total_length = 128,
+        .id = 52149,
+        .flags = .{ .df = true, .mf = false },
+        .fragment_offset = 0,
+        .ttl = 64,
+        .protocol = 1,
+        .header_checksum = 55667,
+        .source_address = 3232238081,
+        .destination_address = 3232238082,
+    };
+
+    try std.testing.expectEqual(expected, actual);
 }
