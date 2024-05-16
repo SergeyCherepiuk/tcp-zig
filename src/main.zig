@@ -21,7 +21,13 @@ pub fn main() !void {
         }
 
         const ip_header = ip.Ip4Header.new(message[4..24].*);
+        if (ip_header.protocol != 0x06) {
+            continue;
+        }
+
+        const tcp_header = tcp.TcpHeader.new(message[24..44].*);
         std.debug.print("{any}\n", .{ip_header});
+        std.debug.print("{any}\n", .{tcp_header});
     }
 }
 
