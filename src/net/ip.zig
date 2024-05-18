@@ -36,12 +36,6 @@ pub const Header = packed struct(u160) {
     }
 };
 
-pub const HeaderFlags = packed struct(u3) {
-    _: u1 = 0,
-    df: bool = true,
-    mf: bool = false,
-};
-
 test "Header memory layout" {
     try std.testing.expectEqual(0, @bitOffsetOf(Header, "version"));
     try std.testing.expectEqual(4, @bitOffsetOf(Header, "header_length"));
@@ -55,11 +49,6 @@ test "Header memory layout" {
     try std.testing.expectEqual(80, @bitOffsetOf(Header, "header_checksum"));
     try std.testing.expectEqual(96, @bitOffsetOf(Header, "source_address"));
     try std.testing.expectEqual(128, @bitOffsetOf(Header, "destination_address"));
-}
-
-test "HeaderFlags memory layout" {
-    try std.testing.expectEqual(1, @bitOffsetOf(HeaderFlags, "df"));
-    try std.testing.expectEqual(2, @bitOffsetOf(HeaderFlags, "mf"));
 }
 
 test "Header parsing from bytes" {
@@ -88,4 +77,15 @@ test "Header parsing from bytes" {
     };
 
     try std.testing.expectEqual(expected, actual);
+}
+
+pub const HeaderFlags = packed struct(u3) {
+    _: u1 = 0,
+    df: bool = true,
+    mf: bool = false,
+};
+
+test "HeaderFlags memory layout" {
+    try std.testing.expectEqual(1, @bitOffsetOf(HeaderFlags, "df"));
+    try std.testing.expectEqual(2, @bitOffsetOf(HeaderFlags, "mf"));
 }

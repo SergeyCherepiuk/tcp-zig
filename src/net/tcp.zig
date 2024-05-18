@@ -36,41 +36,6 @@ pub const Header = packed struct(u160) {
     }
 };
 
-pub const HeaderFlags = packed struct(u12) {
-    _: u6 = 0,
-    urg: bool = false,
-    ack: bool = false,
-    psh: bool = false,
-    rst: bool = false,
-    syn: bool = false,
-    fin: bool = false,
-};
-
-pub const Connection = struct {
-    source_address: u32,
-    source_port: u16,
-    destination_address: u32,
-    destination_port: u16,
-};
-
-pub const State = struct {
-    pub fn processPacket(
-        _: State,
-        allocator: mem.Allocator,
-        ip_header: ip.Header,
-        tcp_header: Header,
-        data: []const u8,
-    ) !void {
-        std.debug.print("{s}:{d} -> {s}:{d} {d} bytes over tcp\n", .{
-            try utils.formatIp(allocator, ip_header.source_address),
-            tcp_header.source_port,
-            try utils.formatIp(allocator, ip_header.destination_address),
-            tcp_header.destination_port,
-            data.len,
-        });
-    }
-};
-
 test "Header memory layout" {
     try std.testing.expectEqual(0, @bitOffsetOf(Header, "source_port"));
     try std.testing.expectEqual(16, @bitOffsetOf(Header, "destination_port"));
@@ -81,15 +46,6 @@ test "Header memory layout" {
     try std.testing.expectEqual(112, @bitOffsetOf(Header, "window"));
     try std.testing.expectEqual(128, @bitOffsetOf(Header, "checksum"));
     try std.testing.expectEqual(144, @bitOffsetOf(Header, "urgent_pointer"));
-}
-
-test "HeaderFlags memory layout" {
-    try std.testing.expectEqual(6, @bitOffsetOf(HeaderFlags, "urg"));
-    try std.testing.expectEqual(7, @bitOffsetOf(HeaderFlags, "ack"));
-    try std.testing.expectEqual(8, @bitOffsetOf(HeaderFlags, "psh"));
-    try std.testing.expectEqual(9, @bitOffsetOf(HeaderFlags, "rst"));
-    try std.testing.expectEqual(10, @bitOffsetOf(HeaderFlags, "syn"));
-    try std.testing.expectEqual(11, @bitOffsetOf(HeaderFlags, "fin"));
 }
 
 test "Header parsing from bytes" {
@@ -116,3 +72,47 @@ test "Header parsing from bytes" {
 
     try std.testing.expectEqual(expected, actual);
 }
+
+pub const HeaderFlags = packed struct(u12) {
+    _: u6 = 0,
+    urg: bool = false,
+    ack: bool = false,
+    psh: bool = false,
+    rst: bool = false,
+    syn: bool = false,
+    fin: bool = false,
+};
+
+test "HeaderFlags memory layout" {
+    try std.testing.expectEqual(6, @bitOffsetOf(HeaderFlags, "urg"));
+    try std.testing.expectEqual(7, @bitOffsetOf(HeaderFlags, "ack"));
+    try std.testing.expectEqual(8, @bitOffsetOf(HeaderFlags, "psh"));
+    try std.testing.expectEqual(9, @bitOffsetOf(HeaderFlags, "rst"));
+    try std.testing.expectEqual(10, @bitOffsetOf(HeaderFlags, "syn"));
+    try std.testing.expectEqual(11, @bitOffsetOf(HeaderFlags, "fin"));
+}
+
+pub const Connection = struct {
+    source_address: u32,
+    source_port: u16,
+    destination_address: u32,
+    destination_port: u16,
+};
+
+pub const State = struct {
+    pub fn processPacket(
+        _: State,
+        allocator: mem.Allocator,
+        ip_header: ip.Header,
+        tcp_header: Header,
+        data: []const u8,
+    ) !void {
+        std.debug.print("{s}:{d} -> {s}:{d} {d} bytes over tcp\n", .{
+            try utils.formatIp(allocator, ip_header.source_address),
+            tcp_header.source_port,
+            try utils.formatIp(allocator, ip_header.destination_address),
+            tcp_header.destination_port,
+            data.len,
+        });
+    }
+};
