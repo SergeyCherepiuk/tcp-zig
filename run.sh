@@ -14,6 +14,12 @@ ip_address="$2"
 # Build the program
 zig build
 
+# Exit early in the case of failed compilation
+exit_code=$?
+if [[ $exit_code -ne 0 ]]; then
+	exit $exit_code
+fi
+
 # Attach network administration capability to compiled executable
 sudo setcap CAP_NET_ADMIN=ep ./zig-out/bin/main
 
