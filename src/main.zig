@@ -4,10 +4,16 @@ const tun = @import("net/tun.zig");
 const ip = @import("net/ip.zig");
 const tcp = @import("net/tcp.zig");
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
 pub fn main() !void {
     var process_args = process.args();
     const device_name = try parseArgs(&process_args);
     const tun_file = try tun.openTun(device_name);
+
+    var connections = std.AutoHashMap(tcp.Connection, tcp.State).init(allocator);
+    defer connections.deinit();
 
     const buf_size = 1504; // Default MTU + 4 bytes for headers (flags and protocol)
     var buf: [buf_size]u8 = undefined;
@@ -20,14 +26,23 @@ pub fn main() !void {
             continue;
         }
 
-        const ip_header = ip.Ip4Header.new(message[4..24].*);
+        const ip_header = ip.Header.new(message[4..24].*);
         if (ip_header.protocol != 0x06) {
             continue;
         }
 
-        const tcp_header = tcp.TcpHeader.new(message[24..44].*);
-        std.debug.print("{any}\n", .{ip_header});
-        std.debug.print("{any}\n", .{tcp_header});
+        const tcp_header = tcp.Header.new(message[24..44].*);
+
+        const connection = tcp.Connection{
+            .source_address = ip_header.source_address,
+            .source_port = tcp_header.source_port,
+            .destination_address = ip_header.destination_address,
+            .destination_port = tcp_header.destination_port,
+        };
+
+        const entry = try connections.getOrPutValue(connection, tcp.State{});
+        const state = entry.value_ptr;
+        try state.processPacket(allocator, ip_header, tcp_header, message[44..bytes]);
     }
 }
 

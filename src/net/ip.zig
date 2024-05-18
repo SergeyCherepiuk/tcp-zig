@@ -1,13 +1,13 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 
-pub const Ip4Header = packed struct(u160) {
+pub const Header = packed struct(u160) {
     version: u4,
     header_length: u4,
     type_of_service: u8,
     total_length: u16,
     id: u16,
-    flags: Ip4HeaderFlags,
+    flags: HeaderFlags,
     fragment_offset: u13,
     ttl: u8,
     protocol: u8,
@@ -15,14 +15,14 @@ pub const Ip4Header = packed struct(u160) {
     source_address: u32,
     destination_address: u32,
 
-    pub fn new(bytes: [20]u8) Ip4Header {
-        return Ip4Header{
+    pub fn new(bytes: [20]u8) Header {
+        return Header{
             .version = @intCast(bytes[0] >> 4 & 0xF),
             .header_length = @intCast(bytes[0] & 0xF),
             .type_of_service = bytes[1],
             .total_length = utils.intFromBytes(u16, bytes[2..4]),
             .id = utils.intFromBytes(u16, bytes[4..6]),
-            .flags = Ip4HeaderFlags{
+            .flags = HeaderFlags{
                 .df = (bytes[6] >> 5) & (1 << 1) != 0,
                 .mf = (bytes[6] >> 5) & (1 << 0) != 0,
             },
@@ -36,33 +36,33 @@ pub const Ip4Header = packed struct(u160) {
     }
 };
 
-pub const Ip4HeaderFlags = packed struct(u3) {
+pub const HeaderFlags = packed struct(u3) {
     _: u1 = 0,
     df: bool = true,
     mf: bool = false,
 };
 
-test "Ip4Header memory layout" {
-    try std.testing.expectEqual(0, @bitOffsetOf(Ip4Header, "version"));
-    try std.testing.expectEqual(4, @bitOffsetOf(Ip4Header, "header_length"));
-    try std.testing.expectEqual(8, @bitOffsetOf(Ip4Header, "type_of_service"));
-    try std.testing.expectEqual(16, @bitOffsetOf(Ip4Header, "total_length"));
-    try std.testing.expectEqual(32, @bitOffsetOf(Ip4Header, "id"));
-    try std.testing.expectEqual(48, @bitOffsetOf(Ip4Header, "flags"));
-    try std.testing.expectEqual(51, @bitOffsetOf(Ip4Header, "fragment_offset"));
-    try std.testing.expectEqual(64, @bitOffsetOf(Ip4Header, "ttl"));
-    try std.testing.expectEqual(72, @bitOffsetOf(Ip4Header, "protocol"));
-    try std.testing.expectEqual(80, @bitOffsetOf(Ip4Header, "header_checksum"));
-    try std.testing.expectEqual(96, @bitOffsetOf(Ip4Header, "source_address"));
-    try std.testing.expectEqual(128, @bitOffsetOf(Ip4Header, "destination_address"));
+test "Header memory layout" {
+    try std.testing.expectEqual(0, @bitOffsetOf(Header, "version"));
+    try std.testing.expectEqual(4, @bitOffsetOf(Header, "header_length"));
+    try std.testing.expectEqual(8, @bitOffsetOf(Header, "type_of_service"));
+    try std.testing.expectEqual(16, @bitOffsetOf(Header, "total_length"));
+    try std.testing.expectEqual(32, @bitOffsetOf(Header, "id"));
+    try std.testing.expectEqual(48, @bitOffsetOf(Header, "flags"));
+    try std.testing.expectEqual(51, @bitOffsetOf(Header, "fragment_offset"));
+    try std.testing.expectEqual(64, @bitOffsetOf(Header, "ttl"));
+    try std.testing.expectEqual(72, @bitOffsetOf(Header, "protocol"));
+    try std.testing.expectEqual(80, @bitOffsetOf(Header, "header_checksum"));
+    try std.testing.expectEqual(96, @bitOffsetOf(Header, "source_address"));
+    try std.testing.expectEqual(128, @bitOffsetOf(Header, "destination_address"));
 }
 
-test "Ip4HeaderFlags memory layout" {
-    try std.testing.expectEqual(1, @bitOffsetOf(Ip4HeaderFlags, "df"));
-    try std.testing.expectEqual(2, @bitOffsetOf(Ip4HeaderFlags, "mf"));
+test "HeaderFlags memory layout" {
+    try std.testing.expectEqual(1, @bitOffsetOf(HeaderFlags, "df"));
+    try std.testing.expectEqual(2, @bitOffsetOf(HeaderFlags, "mf"));
 }
 
-test "Ip4Header parsing from bytes" {
+test "Header parsing from bytes" {
     const bytes = [20]u8{
         0b01000101, 0b00000000, 0b00000000, 0b10000000,
         0b11001011, 0b10110101, 0b01000000, 0b00000000,
@@ -71,8 +71,8 @@ test "Ip4Header parsing from bytes" {
         0b11000000, 0b10101000, 0b00001010, 0b00000010,
     };
 
-    const actual = Ip4Header.new(bytes);
-    const expected = Ip4Header{
+    const actual = Header.new(bytes);
+    const expected = Header{
         .version = 4,
         .header_length = 5,
         .type_of_service = 0,
