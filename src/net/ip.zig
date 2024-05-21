@@ -1,6 +1,7 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 
+// TODO: Parse options
 pub const Header = packed struct(u160) {
     version: u4,
     header_length: u4,
@@ -15,14 +16,14 @@ pub const Header = packed struct(u160) {
     source_address: u32,
     destination_address: u32,
 
-    pub fn new(bytes: [20]u8) Header {
-        return Header{
+    pub fn new(bytes: []const u8) struct { header: Header, bytes_read: usize } {
+        const header = Header{
             .version = @intCast(bytes[0] >> 4 & 0xF),
             .header_length = @intCast(bytes[0] & 0xF),
             .type_of_service = bytes[1],
             .total_length = utils.intFromBytes(u16, bytes[2..4]),
             .id = utils.intFromBytes(u16, bytes[4..6]),
-            .flags = HeaderFlags{
+            .flags = .{
                 .df = (bytes[6] >> 5) & (1 << 1) != 0,
                 .mf = (bytes[6] >> 5) & (1 << 0) != 0,
             },
@@ -33,6 +34,7 @@ pub const Header = packed struct(u160) {
             .source_address = utils.intFromBytes(u32, bytes[12..16]),
             .destination_address = utils.intFromBytes(u32, bytes[16..20]),
         };
+        return .{ .header = header, .bytes_read = 20 };
     }
 };
 
@@ -52,16 +54,18 @@ test "Header memory layout" {
 }
 
 test "Header parsing from bytes" {
-    const bytes = [20]u8{
+    const bytes: []const u8 = &.{
         0b01000101, 0b00000000, 0b00000000, 0b10000000,
         0b11001011, 0b10110101, 0b01000000, 0b00000000,
         0b01000000, 0b00000001, 0b11011001, 0b01110011,
         0b11000000, 0b10101000, 0b00001010, 0b00000001,
         0b11000000, 0b10101000, 0b00001010, 0b00000010,
+        0b00000000, 0b00000000, 0b00000000, 0b00000000, // Dummy bytes
+        0b00000000, 0b00000000, 0b00000000, 0b00000000, // Dummy bytes
     };
 
-    const actual = Header.new(bytes);
-    const expected = Header{
+    const expected_bytes_read = 20;
+    const expected_header = Header{
         .version = 4,
         .header_length = 5,
         .type_of_service = 0,
@@ -76,7 +80,10 @@ test "Header parsing from bytes" {
         .destination_address = 3232238082,
     };
 
-    try std.testing.expectEqual(expected, actual);
+    const actual = Header.new(bytes);
+
+    try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
+    try std.testing.expectEqual(expected_header, actual.header);
 }
 
 pub const HeaderFlags = packed struct(u3) {

@@ -3,6 +3,7 @@ const process = std.process;
 const tun = @import("net/tun.zig");
 const ip = @import("net/ip.zig");
 const tcp = @import("net/tcp.zig");
+const utils = @import("net/utils.zig");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
@@ -18,31 +19,40 @@ pub fn main() !void {
     const buf_size = 1504; // Default MTU + 4 bytes for headers (flags and protocol)
     var buf: [buf_size]u8 = undefined;
     while (true) {
-        const bytes = try tun_file.read(&buf);
-        const message = buf[0..bytes];
+        const bytes_read = try tun_file.read(&buf);
+        const message = buf[0..bytes_read];
+        var bytes_parsed: usize = 0;
 
-        const ethernet_protocol = (@as(u16, message[2]) << 8) + message[3];
+        const ethernet_protocol = utils.intFromBytes(u16, message[2..4]);
         if (ethernet_protocol != 0x0800) {
             continue;
         }
+        bytes_parsed += 4;
 
-        const ip_header = ip.Header.new(message[4..24].*);
-        if (ip_header.protocol != 0x06) {
+        const iph_union = ip.Header.new(message[bytes_parsed..]);
+        if (iph_union.header.protocol != 0x06) {
             continue;
         }
+        bytes_parsed += iph_union.bytes_read;
 
-        const tcp_header = tcp.Header.new(message[24..44].*);
+        const tcph_union = tcp.Header.new(message[bytes_parsed..]);
+        bytes_parsed += tcph_union.bytes_read;
 
         const connection = tcp.Connection{
-            .source_address = ip_header.source_address,
-            .source_port = tcp_header.source_port,
-            .destination_address = ip_header.destination_address,
-            .destination_port = tcp_header.destination_port,
+            .source_address = iph_union.header.source_address,
+            .source_port = tcph_union.header.source_port,
+            .destination_address = iph_union.header.destination_address,
+            .destination_port = tcph_union.header.destination_port,
         };
 
         const entry = try connections.getOrPutValue(connection, tcp.State{});
         const state = entry.value_ptr;
-        try state.processPacket(allocator, ip_header, tcp_header, message[44..bytes]);
+        try state.processPacket(
+            allocator,
+            iph_union.header,
+            tcph_union.header,
+            message[bytes_parsed..],
+        );
     }
 }
 
