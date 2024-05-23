@@ -1,7 +1,6 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 
-// TODO: Parse options
 pub const Header = packed struct(u160) {
     version: u4,
     header_length: u4,
@@ -16,25 +15,31 @@ pub const Header = packed struct(u160) {
     source_address: u32,
     destination_address: u32,
 
-    pub fn new(bytes: []const u8) struct { header: Header, bytes_read: usize } {
+    pub fn parse(raw: []const u8) struct { header: Header, bytes_read: usize } {
         const header = Header{
-            .version = @intCast(bytes[0] >> 4 & 0xF),
-            .header_length = @intCast(bytes[0] & 0xF),
-            .type_of_service = bytes[1],
-            .total_length = utils.intFromBytes(u16, bytes[2..4]),
-            .id = utils.intFromBytes(u16, bytes[4..6]),
+            .version = @intCast(raw[0] >> 4 & 0xF),
+            .header_length = @intCast(raw[0] & 0xF),
+            .type_of_service = raw[1],
+            .total_length = utils.intFromBytes(u16, raw[2..4]),
+            .id = utils.intFromBytes(u16, raw[4..6]),
             .flags = .{
-                .df = (bytes[6] >> 5) & (1 << 1) != 0,
-                .mf = (bytes[6] >> 5) & (1 << 0) != 0,
+                .df = (raw[6] >> 5) & (1 << 1) != 0,
+                .mf = (raw[6] >> 5) & (1 << 0) != 0,
             },
-            .fragment_offset = utils.intFromBytes(u13, &[_]u8{ bytes[6] & 0x1F, bytes[7] }),
-            .ttl = bytes[8],
-            .protocol = bytes[9],
-            .header_checksum = utils.intFromBytes(u16, bytes[10..12]),
-            .source_address = utils.intFromBytes(u32, bytes[12..16]),
-            .destination_address = utils.intFromBytes(u32, bytes[16..20]),
+            .fragment_offset = utils.intFromBytes(u13, &[_]u8{ raw[6] & 0x1F, raw[7] }),
+            .ttl = raw[8],
+            .protocol = raw[9],
+            .header_checksum = utils.intFromBytes(u16, raw[10..12]),
+            .source_address = utils.intFromBytes(u32, raw[12..16]),
+            .destination_address = utils.intFromBytes(u32, raw[16..20]),
         };
         return .{ .header = header, .bytes_read = 20 };
+    }
+
+    // TODO: Not implemented
+    pub fn bytes(self: Header) []const u8 {
+        _ = self;
+        return undefined;
     }
 };
 
@@ -80,7 +85,7 @@ test "Header parsing from bytes" {
         .destination_address = 3232238082,
     };
 
-    const actual = Header.new(bytes);
+    const actual = Header.parse(bytes);
 
     try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
     try std.testing.expectEqual(expected_header, actual.header);

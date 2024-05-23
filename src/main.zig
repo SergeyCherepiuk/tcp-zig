@@ -11,7 +11,9 @@ const allocator = gpa.allocator();
 pub fn main() !void {
     var process_args = process.args();
     const device_name = try parseArgs(&process_args);
+
     const tun_file = try tun.openTun(device_name);
+    defer tun_file.close();
 
     var connections = std.AutoHashMap(tcp.Connection, tcp.State).init(allocator);
     defer connections.deinit();
@@ -29,13 +31,13 @@ pub fn main() !void {
         }
         bytes_parsed += 4;
 
-        const iph_union = ip.Header.new(message[bytes_parsed..]);
+        const iph_union = ip.Header.parse(message[bytes_parsed..]);
         if (iph_union.header.protocol != 0x06) {
             continue;
         }
         bytes_parsed += iph_union.bytes_read;
 
-        const tcph_union = tcp.Header.new(message[bytes_parsed..]);
+        const tcph_union = tcp.Header.parse(message[bytes_parsed..]);
         bytes_parsed += tcph_union.bytes_read;
 
         const connection = tcp.Connection{
@@ -47,12 +49,7 @@ pub fn main() !void {
 
         const entry = try connections.getOrPutValue(connection, tcp.State{});
         const state = entry.value_ptr;
-        try state.processPacket(
-            allocator,
-            iph_union.header,
-            tcph_union.header,
-            message[bytes_parsed..],
-        );
+        state.process(iph_union.header, tcph_union.header, message[bytes_parsed..]);
     }
 }
 

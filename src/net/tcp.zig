@@ -1,5 +1,5 @@
 const std = @import("std");
-const mem = std.mem;
+const os = std.os;
 const ip = @import("ip.zig");
 const utils = @import("utils.zig");
 
@@ -15,33 +15,39 @@ pub const Header = packed struct(u250) {
     urgent_pointer: u16,
     options: Options,
 
-    pub fn new(bytes: []const u8) struct { header: Header, bytes_read: usize } {
+    pub fn parse(raw: []const u8) struct { header: Header, bytes_read: usize } {
         var header = Header{
-            .source_port = utils.intFromBytes(u16, bytes[0..2]),
-            .destination_port = utils.intFromBytes(u16, bytes[2..4]),
-            .sequence_number = utils.intFromBytes(u32, bytes[4..8]),
-            .acknowledgment_number = utils.intFromBytes(u32, bytes[8..12]),
-            .data_offset = @intCast(bytes[12] >> 4 & 0xF),
+            .source_port = utils.intFromBytes(u16, raw[0..2]),
+            .destination_port = utils.intFromBytes(u16, raw[2..4]),
+            .sequence_number = utils.intFromBytes(u32, raw[4..8]),
+            .acknowledgment_number = utils.intFromBytes(u32, raw[8..12]),
+            .data_offset = @intCast(raw[12] >> 4 & 0xF),
             .flags = .{
-                .urg = bytes[13] & (1 << 5) != 0,
-                .ack = bytes[13] & (1 << 4) != 0,
-                .psh = bytes[13] & (1 << 3) != 0,
-                .rst = bytes[13] & (1 << 2) != 0,
-                .syn = bytes[13] & (1 << 1) != 0,
-                .fin = bytes[13] & (1 << 0) != 0,
+                .urg = raw[13] & (1 << 5) != 0,
+                .ack = raw[13] & (1 << 4) != 0,
+                .psh = raw[13] & (1 << 3) != 0,
+                .rst = raw[13] & (1 << 2) != 0,
+                .syn = raw[13] & (1 << 1) != 0,
+                .fin = raw[13] & (1 << 0) != 0,
             },
-            .window = utils.intFromBytes(u16, bytes[14..16]),
-            .checksum = utils.intFromBytes(u16, bytes[16..18]),
-            .urgent_pointer = utils.intFromBytes(u16, bytes[18..20]),
+            .window = utils.intFromBytes(u16, raw[14..16]),
+            .checksum = utils.intFromBytes(u16, raw[16..18]),
+            .urgent_pointer = utils.intFromBytes(u16, raw[18..20]),
             .options = undefined,
         };
 
         const options_start = @as(u16, header.data_offset) * 4 - 20;
         const options_end = @as(u16, header.data_offset) * 4;
-        const options_union = Options.new(bytes[options_start..options_end]);
+        const options_union = Options.parse(bytes[options_start..options_end]);
         header.options = options_union.options;
 
         return .{ .header = header, .bytes_read = 20 + options_union.bytes_read };
+    }
+
+    // TODO: Not implemented
+    pub fn bytes(self: Header) []const u8 {
+        _ = self;
+        return undefined;
     }
 };
 
@@ -94,7 +100,7 @@ test "Header parsing from bytes" {
         },
     };
 
-    const actual = Header.new(bytes);
+    const actual = Header.parse(bytes);
 
     try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
     try std.testing.expectEqual(expected_header, actual.header);
@@ -142,7 +148,7 @@ pub const Options = packed struct(u90) {
     const LEN_SELECTIVE_ACK = 2;
     const LEN_TIMESTAMP = 10;
 
-    pub fn new(bytes: []const u8) struct { options: Options, bytes_read: usize } {
+    pub fn parse(bytes: []const u8) struct { options: Options, bytes_read: usize } {
         var options = Options{};
 
         var bytes_read: usize = 0;
@@ -212,7 +218,7 @@ test "Options parsing from bytes" {
         .window_scale = 7,
     };
 
-    const actual = Options.new(bytes);
+    const actual = Options.parse(bytes);
 
     try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
     try std.testing.expectEqual(expected_options, actual.options);
@@ -225,20 +231,37 @@ pub const Connection = struct {
     destination_port: u16,
 };
 
-pub const State = struct {
-    pub fn processPacket(
-        _: State,
-        allocator: mem.Allocator,
-        ip_header: ip.Header,
-        tcp_header: Header,
-        data: []const u8,
-    ) !void {
-        std.debug.print("{s}:{d} -> {s}:{d} {d} bytes over tcp\n", .{
-            try utils.formatIp(allocator, ip_header.source_address),
-            tcp_header.source_port,
-            try utils.formatIp(allocator, ip_header.destination_address),
-            tcp_header.destination_port,
-            data.len,
-        });
+pub const State = enum {
+    Listen,
+    SynSent,
+    SynRecived,
+    Established,
+    FinWait1,
+    FinWait2,
+    CloseWait,
+    Closing,
+    LastAck,
+    TimeWait,
+    Closed,
+
+    pub fn process(self: State, tun: os.File, iph: ip.Header, tcph: Header, data: []const u8) usize {
+        _ = tun;
+        _ = iph;
+        _ = tcph;
+        _ = data;
+
+        return switch (self) {
+            State.Listen => undefined,
+            State.SynSent => undefined,
+            State.SynRecived => undefined,
+            State.Established => undefined,
+            State.FinWait1 => undefined,
+            State.FinWait2 => undefined,
+            State.CloseWait => undefined,
+            State.Closing => undefined,
+            State.LastAck => undefined,
+            State.TimeWait => undefined,
+            State.Closed => 0,
+        };
     }
 };
