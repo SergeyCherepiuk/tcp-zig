@@ -19,6 +19,28 @@ test "integer from slice of bytes" {
     try std.testing.expectEqual(intFromBytes(u8, &.{}), @as(u8, 0x0));
 }
 
+pub fn bytesFromInt(comptime T: type, value: T) [@sizeOf(T)]u8 {
+    const nbytes = @sizeOf(T);
+    var buf: [nbytes]u8 = undefined;
+
+    var i: usize = 0;
+    while (i < nbytes) : (i += 1) {
+        const shr = (nbytes - i - 1) * 8;
+        const byte = value >> @intCast(shr);
+        buf[i] = @intCast(byte & 0xFF);
+    }
+
+    return buf;
+}
+
+test "array of bytes from integer" {
+    try std.testing.expectEqual(bytesFromInt(u8, 11), [1]u8{0x0B});
+    try std.testing.expectEqual(bytesFromInt(u16, 5123), [2]u8{ 0x14, 0x03 });
+    try std.testing.expectEqual(bytesFromInt(u32, 197121), [4]u8{ 0x00, 0x03, 0x02, 0x01 });
+    try std.testing.expectEqual(bytesFromInt(u32, 283562983), [4]u8{ 0x10, 0xE6, 0xD3, 0xE7 });
+    try std.testing.expectEqual(bytesFromInt(u8, 0), [1]u8{0x00});
+}
+
 pub fn formatIp(allocator: mem.Allocator, address: u32) fmt.AllocPrintError![]const u8 {
     return try fmt.allocPrint(allocator, "{d}.{d}.{d}.{d}", .{
         (address >> 24) & 0xFF,
