@@ -1,9 +1,13 @@
 const std = @import("std");
 const process = std.process;
-const tun = @import("net/tun.zig");
-const ip = @import("net/ip.zig");
-const tcp = @import("net/tcp.zig");
+
+const tun = @import("net/tun/tun.zig");
 const utils = @import("net/utils.zig");
+
+const IpHeader = @import("net/ip/header.zig").Header;
+const TcpHeader = @import("net/tcp/header.zig").Header;
+const TcpConnection = @import("net/tcp/connection.zig").Connection;
+const TcpState = @import("net/tcp/state.zig").State;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();
@@ -15,7 +19,7 @@ pub fn main() !void {
     const tun_file = try tun.openTun(device_name);
     defer tun_file.close();
 
-    var connections = std.AutoHashMap(tcp.Connection, tcp.State).init(allocator);
+    var connections = std.AutoHashMap(TcpConnection, TcpState).init(allocator);
     defer connections.deinit();
 
     const buf_size = 1504; // Default MTU + 4 bytes for headers (flags and protocol)
@@ -31,28 +35,28 @@ pub fn main() !void {
         }
         bytes_parsed += 4;
 
-        const iph_union = ip.Header.parse(message[bytes_parsed..]);
-        if (iph_union.header.protocol != 0x06) {
+        const ip_header_union = IpHeader.fromBytes(message[bytes_parsed..]);
+        if (ip_header_union.header.protocol != 0x06) {
             continue;
         }
-        bytes_parsed += iph_union.bytes_read;
+        bytes_parsed += ip_header_union.bytes_read;
 
-        const tcph_union = tcp.Header.parse(message[bytes_parsed..]);
-        bytes_parsed += tcph_union.bytes_read;
+        const tcp_header_union = TcpHeader.fromBytes(message[bytes_parsed..]);
+        bytes_parsed += tcp_header_union.bytes_read;
 
-        const connection = tcp.Connection{
-            .source_address = iph_union.header.source_address,
-            .source_port = tcph_union.header.source_port,
-            .destination_address = iph_union.header.destination_address,
-            .destination_port = tcph_union.header.destination_port,
+        const connection = TcpConnection{
+            .source_address = ip_header_union.header.source_address,
+            .source_port = tcp_header_union.header.source_port,
+            .destination_address = ip_header_union.header.destination_address,
+            .destination_port = tcp_header_union.header.destination_port,
         };
 
-        const entry = try connections.getOrPutValue(connection, tcp.State.Listen);
+        const entry = try connections.getOrPutValue(connection, TcpState.Listen);
         const state = entry.value_ptr;
         _ = state.process(
             tun_file,
-            iph_union.header,
-            tcph_union.header,
+            ip_header_union.header,
+            tcp_header_union.header,
             message[bytes_parsed..],
         );
     }

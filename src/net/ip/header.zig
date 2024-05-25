@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
-const utils = @import("utils.zig");
+
+const utils = @import("../utils.zig");
 
 pub const Header = packed struct(u160) {
     version: u4,
@@ -16,7 +17,7 @@ pub const Header = packed struct(u160) {
     source_address: u32,
     destination_address: u32,
 
-    pub fn parse(raw: []const u8) struct { header: Header, bytes_read: usize } {
+    pub fn fromBytes(raw: []const u8) struct { header: Header, bytes_read: usize } {
         const header = Header{
             .version = @intCast(raw[0] >> 4 & 0xF),
             .header_length = @intCast(raw[0] & 0xF),
@@ -45,7 +46,7 @@ pub const Header = packed struct(u160) {
     }
 };
 
-test "Header memory layout" {
+test "header memory layout" {
     try std.testing.expectEqual(0, @bitOffsetOf(Header, "version"));
     try std.testing.expectEqual(4, @bitOffsetOf(Header, "header_length"));
     try std.testing.expectEqual(8, @bitOffsetOf(Header, "type_of_service"));
@@ -60,7 +61,7 @@ test "Header memory layout" {
     try std.testing.expectEqual(128, @bitOffsetOf(Header, "destination_address"));
 }
 
-test "Header parsing from bytes" {
+test "header from bytes" {
     const bytes: []const u8 = &.{
         0b01000101, 0b00000000, 0b00000000, 0b10000000,
         0b11001011, 0b10110101, 0b01000000, 0b00000000,
@@ -87,7 +88,7 @@ test "Header parsing from bytes" {
         .destination_address = 3232238082,
     };
 
-    const actual = Header.parse(bytes);
+    const actual = Header.fromBytes(bytes);
 
     try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
     try std.testing.expectEqual(expected_header, actual.header);
@@ -99,7 +100,7 @@ pub const HeaderFlags = packed struct(u3) {
     mf: bool = false,
 };
 
-test "HeaderFlags memory layout" {
+test "header flags memory layout" {
     try std.testing.expectEqual(1, @bitOffsetOf(HeaderFlags, "df"));
     try std.testing.expectEqual(2, @bitOffsetOf(HeaderFlags, "mf"));
 }
