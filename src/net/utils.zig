@@ -60,9 +60,9 @@ test "ip address formatting" {
         Datum{ .address = 134744072, .expected = "8.8.8.8" },
     };
 
-    const allocator = heap.page_allocator;
     for (data) |datum| {
-        const actual = try formatIp(allocator, datum.address);
+        const actual = try formatIp(std.testing.allocator, datum.address);
+        defer std.testing.allocator.free(actual);
         try std.testing.expectEqualSlices(u8, datum.expected, actual);
     }
 }

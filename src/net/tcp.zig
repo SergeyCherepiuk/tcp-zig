@@ -1,5 +1,6 @@
 const std = @import("std");
-const os = std.os;
+const mem = std.mem;
+const fs = std.fs;
 const ip = @import("ip.zig");
 const utils = @import("utils.zig");
 
@@ -38,16 +39,33 @@ pub const Header = packed struct(u250) {
 
         const options_start = @as(u16, header.data_offset) * 4 - 20;
         const options_end = @as(u16, header.data_offset) * 4;
-        const options_union = Options.parse(bytes[options_start..options_end]);
+        const options_union = Options.parse(raw[options_start..options_end]);
         header.options = options_union.options;
 
         return .{ .header = header, .bytes_read = 20 + options_union.bytes_read };
     }
 
-    // TODO: Not implemented
-    pub fn bytes(self: Header) []const u8 {
-        _ = self;
-        return undefined;
+    pub fn bytes(self: Header, allocator: mem.Allocator) mem.Allocator.Error![]const u8 {
+        var buf: []u8 = try allocator.alloc(u8, 44);
+
+        std.mem.copyForwards(u8, buf[0..2], &utils.bytesFromInt(u16, self.source_port));
+        std.mem.copyForwards(u8, buf[2..4], &utils.bytesFromInt(u16, self.destination_port));
+        std.mem.copyForwards(u8, buf[4..8], &utils.bytesFromInt(u32, self.sequence_number));
+        std.mem.copyForwards(u8, buf[8..12], &utils.bytesFromInt(u32, self.acknowledgment_number));
+        buf[12] = @as(u8, self.data_offset) << 4;
+        buf[13] = @truncate(@as(u12, @bitCast(self.flags)));
+        std.mem.copyForwards(u8, buf[14..16], &utils.bytesFromInt(u16, self.window));
+        std.mem.copyForwards(u8, buf[16..18], &utils.bytesFromInt(u16, self.checksum));
+        std.mem.copyForwards(u8, buf[18..20], &utils.bytesFromInt(u16, self.urgent_pointer));
+
+        const option_bytes = try self.options.bytes(allocator);
+        defer allocator.free(option_bytes);
+        std.mem.copyForwards(u8, buf[20..42], option_bytes);
+
+        const padding: u16 = 0;
+        std.mem.copyForwards(u8, buf[42..44], &utils.bytesFromInt(u16, padding));
+
+        return buf;
     }
 };
 
@@ -106,23 +124,63 @@ test "Header parsing from bytes" {
     try std.testing.expectEqual(expected_header, actual.header);
 }
 
+test "Header into slice of bytes" {
+    const header = Header{
+        .source_port = 36020,
+        .destination_port = 443,
+        .sequence_number = 2388734612,
+        .acknowledgment_number = 0,
+        .data_offset = 10,
+        .flags = .{ .syn = true },
+        .window = 32120,
+        .checksum = 60522,
+        .urgent_pointer = 0,
+        .options = .{
+            .maximum_segment_size = 1460,
+            .selective_ack = false,
+            .selective_ack_permitted = true,
+            .timestamp = 10808747317390213120,
+            .window_scale = 7,
+        },
+    };
+
+    const expected_bytes = &.{
+        0b10001100, 0b10110100, 0b00000001, 0b10111011,
+        0b10001110, 0b01100001, 0b00110010, 0b10010100,
+        0b00000000, 0b00000000, 0b00000000, 0b00000000,
+        0b10100000, 0b00000010, 0b01111101, 0b01111000,
+        0b11101100, 0b01101010, 0b00000000, 0b00000000,
+        0b00000010, 0b00000100, 0b00000101, 0b10110100,
+        0b00001000, 0b00001010, 0b10010110, 0b00000000,
+        0b01100010, 0b01101011, 0b00000000, 0b00000000,
+        0b00000000, 0b00000000, 0b00000011, 0b00000011,
+        0b00000111, 0b00000001, 0b00000001, 0b00000100,
+        0b00000010, 0b00000000, 0b00000000, 0b00000000,
+    };
+
+    const actual_bytes = try header.bytes(std.testing.allocator);
+    defer std.testing.allocator.free(actual_bytes);
+
+    try std.testing.expectEqualSlices(u8, expected_bytes, actual_bytes);
+}
+
 pub const HeaderFlags = packed struct(u12) {
-    _: u6 = 0,
-    urg: bool = false,
-    ack: bool = false,
-    psh: bool = false,
-    rst: bool = false,
-    syn: bool = false,
     fin: bool = false,
+    syn: bool = false,
+    rst: bool = false,
+    psh: bool = false,
+    ack: bool = false,
+    urg: bool = false,
+    _: u6 = 0,
 };
 
 test "HeaderFlags memory layout" {
-    try std.testing.expectEqual(6, @bitOffsetOf(HeaderFlags, "urg"));
-    try std.testing.expectEqual(7, @bitOffsetOf(HeaderFlags, "ack"));
-    try std.testing.expectEqual(8, @bitOffsetOf(HeaderFlags, "psh"));
-    try std.testing.expectEqual(9, @bitOffsetOf(HeaderFlags, "rst"));
-    try std.testing.expectEqual(10, @bitOffsetOf(HeaderFlags, "syn"));
-    try std.testing.expectEqual(11, @bitOffsetOf(HeaderFlags, "fin"));
+    try std.testing.expectEqual(0, @bitOffsetOf(HeaderFlags, "fin"));
+    try std.testing.expectEqual(1, @bitOffsetOf(HeaderFlags, "syn"));
+    try std.testing.expectEqual(2, @bitOffsetOf(HeaderFlags, "rst"));
+    try std.testing.expectEqual(3, @bitOffsetOf(HeaderFlags, "psh"));
+    try std.testing.expectEqual(4, @bitOffsetOf(HeaderFlags, "ack"));
+    try std.testing.expectEqual(5, @bitOffsetOf(HeaderFlags, "urg"));
 }
 
 pub const Options = packed struct(u90) {
@@ -148,21 +206,21 @@ pub const Options = packed struct(u90) {
     const LEN_SELECTIVE_ACK = 2;
     const LEN_TIMESTAMP = 10;
 
-    pub fn parse(bytes: []const u8) struct { options: Options, bytes_read: usize } {
+    pub fn parse(raw: []const u8) struct { options: Options, bytes_read: usize } {
         var options = Options{};
 
         var bytes_read: usize = 0;
-        while (bytes_read < bytes.len) {
-            const kind = bytes[bytes_read];
+        while (bytes_read < raw.len) {
+            const kind = raw[bytes_read];
             switch (kind) {
                 KIND_MAXIMUM_SEGMENT_SIZE => {
                     const start = bytes_read + 2;
                     const end = bytes_read + LEN_MAXIMUM_SEGMENT_SIZE;
-                    options.maximum_segment_size = utils.intFromBytes(u16, bytes[start..end]);
+                    options.maximum_segment_size = utils.intFromBytes(u16, raw[start..end]);
                     bytes_read += LEN_MAXIMUM_SEGMENT_SIZE;
                 },
                 KIND_WINDOW_SCALE => {
-                    options.window_scale = bytes[bytes_read + 2];
+                    options.window_scale = raw[bytes_read + 2];
                     bytes_read += LEN_WINDOW_SCALE;
                 },
                 KIND_SELECTIVE_ACK_PERMITTED => {
@@ -176,7 +234,7 @@ pub const Options = packed struct(u90) {
                 KIND_TIMESTAMP => {
                     const start = bytes_read + 2;
                     const end = bytes_read + LEN_TIMESTAMP;
-                    options.timestamp = utils.intFromBytes(u64, bytes[start..end]);
+                    options.timestamp = utils.intFromBytes(u64, raw[start..end]);
                     bytes_read += LEN_TIMESTAMP;
                 },
                 KIND_NOOP => {
@@ -188,6 +246,34 @@ pub const Options = packed struct(u90) {
 
         return .{ .options = options, .bytes_read = bytes_read };
     }
+
+    pub fn bytes(self: Options, allocator: mem.Allocator) mem.Allocator.Error![]const u8 {
+        const size = LEN_MAXIMUM_SEGMENT_SIZE + LEN_TIMESTAMP + LEN_WINDOW_SCALE +
+            LEN_SELECTIVE_ACK + LEN_SELECTIVE_ACK_PERMITTED + LEN_END;
+        const buf = try allocator.alloc(u8, size);
+
+        buf[0] = KIND_MAXIMUM_SEGMENT_SIZE;
+        buf[1] = LEN_MAXIMUM_SEGMENT_SIZE;
+        mem.copyForwards(u8, buf[2..4], &utils.bytesFromInt(u16, self.maximum_segment_size));
+
+        buf[4] = KIND_TIMESTAMP;
+        buf[5] = LEN_TIMESTAMP;
+        mem.copyForwards(u8, buf[6..14], &utils.bytesFromInt(u64, self.timestamp));
+
+        buf[14] = KIND_WINDOW_SCALE;
+        buf[15] = LEN_WINDOW_SCALE;
+        buf[16] = self.window_scale;
+
+        buf[17] = if (self.selective_ack) KIND_SELECTIVE_ACK else KIND_NOOP;
+        buf[18] = if (self.selective_ack) LEN_SELECTIVE_ACK else KIND_NOOP;
+
+        buf[19] = if (self.selective_ack_permitted) KIND_SELECTIVE_ACK_PERMITTED else KIND_NOOP;
+        buf[20] = if (self.selective_ack_permitted) LEN_SELECTIVE_ACK_PERMITTED else KIND_NOOP;
+
+        buf[21] = KIND_END;
+
+        return buf;
+    }
 };
 
 test "Options memory layout" {
@@ -196,6 +282,30 @@ test "Options memory layout" {
     try std.testing.expectEqual(17, @bitOffsetOf(Options, "selective_ack_permitted"));
     try std.testing.expectEqual(18, @bitOffsetOf(Options, "timestamp"));
     try std.testing.expectEqual(82, @bitOffsetOf(Options, "window_scale"));
+}
+
+test "Options into slice of bytes" {
+    const options = Options{
+        .maximum_segment_size = 1460,
+        .selective_ack = false,
+        .selective_ack_permitted = true,
+        .timestamp = 10808747317390213120,
+        .window_scale = 7,
+    };
+
+    const expected_bytes: []const u8 = &.{
+        0b00000010, 0b00000100, 0b00000101, 0b10110100,
+        0b00001000, 0b00001010, 0b10010110, 0b00000000,
+        0b01100010, 0b01101011, 0b00000000, 0b00000000,
+        0b00000000, 0b00000000, 0b00000011, 0b00000011,
+        0b00000111, 0b00000001, 0b00000001, 0b00000100,
+        0b00000010, 0b00000000,
+    };
+
+    const actual_bytes = try options.bytes(std.testing.allocator);
+    defer std.testing.allocator.free(actual_bytes);
+
+    try std.testing.expectEqualSlices(u8, expected_bytes, actual_bytes);
 }
 
 test "Options parsing from bytes" {
@@ -244,7 +354,7 @@ pub const State = enum {
     TimeWait,
     Closed,
 
-    pub fn process(self: State, tun: os.File, iph: ip.Header, tcph: Header, data: []const u8) usize {
+    pub fn process(self: State, tun: fs.File, iph: ip.Header, tcph: Header, data: []const u8) usize {
         _ = tun;
         _ = iph;
         _ = tcph;

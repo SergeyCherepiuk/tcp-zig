@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const utils = @import("utils.zig");
 
 pub const Header = packed struct(u160) {
@@ -36,9 +37,10 @@ pub const Header = packed struct(u160) {
         return .{ .header = header, .bytes_read = 20 };
     }
 
-    // TODO: Not implemented
-    pub fn bytes(self: Header) []const u8 {
+    // TODO: Not implemented and not tested
+    pub fn bytes(self: Header, allocator: mem.Allocator) []const u8 {
         _ = self;
+        _ = allocator;
         return undefined;
     }
 };

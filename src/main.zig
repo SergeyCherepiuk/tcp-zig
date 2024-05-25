@@ -47,9 +47,14 @@ pub fn main() !void {
             .destination_port = tcph_union.header.destination_port,
         };
 
-        const entry = try connections.getOrPutValue(connection, tcp.State{});
+        const entry = try connections.getOrPutValue(connection, tcp.State.Listen);
         const state = entry.value_ptr;
-        state.process(iph_union.header, tcph_union.header, message[bytes_parsed..]);
+        _ = state.process(
+            tun_file,
+            iph_union.header,
+            tcph_union.header,
+            message[bytes_parsed..],
+        );
     }
 }
 
