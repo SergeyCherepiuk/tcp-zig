@@ -1,13 +1,13 @@
 const std = @import("std");
 const process = std.process;
 
-const tun = @import("net/tun/tun.zig");
+const tun = @import("net/tun.zig");
 const utils = @import("net/utils.zig");
 
-const IpHeader = @import("net/ip/header.zig").Header;
-const TcpHeader = @import("net/tcp/header.zig").Header;
-const TcpConnection = @import("net/tcp/connection.zig").Connection;
-const TcpState = @import("net/tcp/state.zig").State;
+const IpHeader = @import("net/ip.zig").Header;
+const TcpHeader = @import("net/tcp.zig").Header;
+const TcpConnection = @import("net/tcp.zig").Connection;
+const TcpState = @import("net/tcp.zig").State;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = gpa.allocator();

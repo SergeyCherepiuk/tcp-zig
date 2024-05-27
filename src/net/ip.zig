@@ -1,7 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 
-const utils = @import("../utils.zig");
+const utils = @import("utils.zig");
 
 pub const Header = packed struct(u160) {
     version: u4,
