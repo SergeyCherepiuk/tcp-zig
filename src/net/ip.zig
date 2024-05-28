@@ -38,11 +38,27 @@ pub const Header = packed struct(u160) {
         return .{ .header = header, .bytes_read = 20 };
     }
 
-    // TODO: Not implemented and not tested
-    pub fn bytes(self: Header, allocator: mem.Allocator) []const u8 {
-        _ = self;
-        _ = allocator;
-        return undefined;
+    pub fn toBytes(self: Header, allocator: mem.Allocator) mem.Allocator.Error![]const u8 {
+        var buf: []u8 = try allocator.alloc(u8, 20);
+
+        buf[0] = (@as(u8, self.version) << 4) + self.header_length;
+        buf[1] = self.type_of_service;
+        mem.copyForwards(u8, buf[2..4], &utils.bytesFromInt(u16, self.total_length));
+        mem.copyForwards(u8, buf[4..6], &utils.bytesFromInt(u16, self.id));
+
+        buf[6] = (@as(u8, @intFromBool(self.flags.df)) << 6) +
+            (@as(u8, @intFromBool(self.flags.mf)) << 5) +
+            @as(u8, @truncate(self.fragment_offset >> 8));
+
+        buf[7] = @truncate(self.fragment_offset & 0xF);
+
+        buf[8] = self.ttl;
+        buf[9] = self.protocol;
+        mem.copyForwards(u8, buf[10..12], &utils.bytesFromInt(u16, self.header_checksum));
+        mem.copyForwards(u8, buf[12..16], &utils.bytesFromInt(u32, self.source_address));
+        mem.copyForwards(u8, buf[16..20], &utils.bytesFromInt(u32, self.destination_address));
+
+        return buf;
     }
 };
 
@@ -92,6 +108,36 @@ test "header from bytes" {
 
     try std.testing.expectEqual(expected_bytes_read, actual.bytes_read);
     try std.testing.expectEqual(expected_header, actual.header);
+}
+
+test "header to bytes" {
+    const header = Header{
+        .version = 4,
+        .header_length = 5,
+        .type_of_service = 0,
+        .total_length = 128,
+        .id = 52149,
+        .flags = .{ .df = true },
+        .fragment_offset = 0,
+        .ttl = 64,
+        .protocol = 1,
+        .header_checksum = 55667,
+        .source_address = 3232238081,
+        .destination_address = 3232238082,
+    };
+
+    const expected_bytes: []const u8 = &.{
+        0b01000101, 0b00000000, 0b00000000, 0b10000000,
+        0b11001011, 0b10110101, 0b01000000, 0b00000000,
+        0b01000000, 0b00000001, 0b11011001, 0b01110011,
+        0b11000000, 0b10101000, 0b00001010, 0b00000001,
+        0b11000000, 0b10101000, 0b00001010, 0b00000010,
+    };
+
+    const actual_bytes = try header.toBytes(std.testing.allocator);
+    defer std.testing.allocator.free(actual_bytes);
+
+    try std.testing.expectEqualSlices(u8, expected_bytes, actual_bytes);
 }
 
 pub const HeaderFlags = packed struct(u3) {
