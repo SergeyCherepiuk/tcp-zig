@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const rand = std.crypto.random;
 
 const utils = @import("utils.zig");
 
@@ -16,6 +17,55 @@ pub const Header = packed struct(u160) {
     header_checksum: u16,
     source_address: u32,
     destination_address: u32,
+
+    // TODO: Unit test
+    pub fn new(
+        source_address: u32,
+        destination_address: u32,
+        data_length: usize,
+        protocol: u8,
+    ) Header {
+        var header = Header{
+            .version = 4,
+            .header_length = 5,
+            .type_of_service = 0,
+            .total_length = 20 + data_length,
+            .id = rand.int(u16),
+            .flags = HeaderFlags{ .df = true },
+            .fragment_offset = 0,
+            .ttl = 64,
+            .protocol = protocol,
+            .checksum = 0,
+            .source_address = source_address,
+            .destination_address = destination_address,
+        };
+        header.checksum = header.checksum();
+        return header;
+    }
+
+    // TODO: Review and refactor
+    pub fn checksum(self: Header) u16 {
+        const df = @as(u16, @intFromBool(self.flags.df)) << 14;
+        const mf = @as(u16, @intFromBool(self.flags.mf)) << 13;
+        const flags_and_fragment_offset = df | mf | @as(u16, self.fragment_offset);
+
+        const five_hex_digit_sum =
+            @as(u32, (@as(u16, self.version) << 12) | (@as(u16, self.header_length) << 8) | @as(u16, self.type_of_service)) +
+            @as(u32, self.total_length) +
+            @as(u32, self.id) +
+            @as(u32, flags_and_fragment_offset) +
+            @as(u32, (@as(u16, self.ttl) << 8) | @as(u16, self.protocol)) +
+            @as(u32, self.source_address >> 16) +
+            @as(u32, self.source_address & 0xFFFF) +
+            @as(u32, self.destination_address >> 16) +
+            @as(u32, self.destination_address & 0xFFFF);
+
+        const four_hex_digit_sum =
+            @as(u16, @truncate(five_hex_digit_sum >> 16)) +
+            @as(u16, @truncate(five_hex_digit_sum & 0x0FFFF));
+
+        return 0xFFFF - four_hex_digit_sum;
+    }
 
     pub fn fromBytes(raw: []const u8) struct { header: Header, bytes_read: usize } {
         const header = Header{
@@ -75,6 +125,29 @@ test "header memory layout" {
     try std.testing.expectEqual(80, @bitOffsetOf(Header, "header_checksum"));
     try std.testing.expectEqual(96, @bitOffsetOf(Header, "source_address"));
     try std.testing.expectEqual(128, @bitOffsetOf(Header, "destination_address"));
+}
+
+test "header checksum" {
+    const header = Header{
+        .version = 4,
+        .header_length = 5,
+        .type_of_service = 0,
+        .total_length = 52,
+        .id = 30155,
+        .flags = HeaderFlags{ .df = true },
+        .fragment_offset = 0,
+        .ttl = 64,
+        .protocol = 6,
+        .header_checksum = 0,
+        .source_address = 2887058667,
+        .destination_address = 1820996403,
+    };
+
+    const expected_checksum = 0x743b;
+
+    const actual_checksum = header.checksum();
+
+    try std.testing.expectEqual(expected_checksum, actual_checksum);
 }
 
 test "header from bytes" {
