@@ -29,17 +29,17 @@ pub const Header = packed struct(u160) {
             .version = 4,
             .header_length = 5,
             .type_of_service = 0,
-            .total_length = 20 + data_length,
+            .total_length = @intCast(20 + data_length),
             .id = rand.int(u16),
             .flags = HeaderFlags{ .df = true },
             .fragment_offset = 0,
             .ttl = 64,
             .protocol = protocol,
-            .checksum = 0,
+            .header_checksum = 0,
             .source_address = source_address,
             .destination_address = destination_address,
         };
-        header.checksum = header.checksum();
+        header.header_checksum = header.checksum();
         return header;
     }
 
@@ -131,6 +131,23 @@ test "header memory layout" {
     try std.testing.expectEqual(80, @bitOffsetOf(Header, "header_checksum"));
     try std.testing.expectEqual(96, @bitOffsetOf(Header, "source_address"));
     try std.testing.expectEqual(128, @bitOffsetOf(Header, "destination_address"));
+}
+
+test "header construction" {
+    const header = Header.new(3232238081, 3232238082, 100, 6);
+    try std.testing.expectEqual(header.version, 4);
+    try std.testing.expectEqual(header.header_length, 5);
+    try std.testing.expectEqual(header.type_of_service, 0);
+    try std.testing.expectEqual(header.total_length, 120);
+    try std.testing.expect(0 <= header.id and header.id <= 65535);
+    try std.testing.expectEqual(header.flags.df, true);
+    try std.testing.expectEqual(header.flags.mf, false);
+    try std.testing.expectEqual(header.fragment_offset, 0);
+    try std.testing.expectEqual(header.ttl, 64);
+    try std.testing.expectEqual(header.protocol, 6);
+    try std.testing.expectEqual(header.header_checksum, header.checksum());
+    try std.testing.expectEqual(header.source_address, 3232238081);
+    try std.testing.expectEqual(header.destination_address, 3232238082);
 }
 
 test "header checksum" {
