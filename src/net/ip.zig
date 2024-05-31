@@ -43,26 +43,32 @@ pub const Header = packed struct(u160) {
         return header;
     }
 
-    // TODO: Review and refactor
     pub fn checksum(self: Header) u16 {
-        const df = @as(u16, @intFromBool(self.flags.df)) << 14;
-        const mf = @as(u16, @intFromBool(self.flags.mf)) << 13;
-        const flags_and_fragment_offset = df | mf | @as(u16, self.fragment_offset);
+        const version = @as(u20, self.version) << 12;
+        const header_length = @as(u20, self.header_length) << 8;
+        const type_of_service = @as(u20, self.type_of_service);
+        const total_length = @as(u20, self.total_length);
+        const id = @as(u20, self.id);
+        const df = @as(u20, @intFromBool(self.flags.df)) << 14;
+        const mf = @as(u20, @intFromBool(self.flags.mf)) << 13;
+        const fragment_offset = @as(u20, self.fragment_offset);
+        const ttl = @as(u20, self.ttl) << 8;
+        const protocol = @as(u20, self.protocol);
+        const first_octets_source_address = @as(u20, @truncate(self.source_address >> 16));
+        const last_octets_source_address = @as(u20, @truncate(self.source_address & 0xFFFF));
+        const first_octets_destination_address = @as(u20, @truncate(self.destination_address >> 16));
+        const last_octets_destination_address = @as(u20, @truncate(self.destination_address & 0xFFFF));
 
         const five_hex_digit_sum =
-            @as(u32, (@as(u16, self.version) << 12) | (@as(u16, self.header_length) << 8) | @as(u16, self.type_of_service)) +
-            @as(u32, self.total_length) +
-            @as(u32, self.id) +
-            @as(u32, flags_and_fragment_offset) +
-            @as(u32, (@as(u16, self.ttl) << 8) | @as(u16, self.protocol)) +
-            @as(u32, self.source_address >> 16) +
-            @as(u32, self.source_address & 0xFFFF) +
-            @as(u32, self.destination_address >> 16) +
-            @as(u32, self.destination_address & 0xFFFF);
+            version + header_length + type_of_service + total_length +
+            id + df + mf + fragment_offset +
+            ttl + protocol +
+            first_octets_source_address + last_octets_source_address +
+            first_octets_destination_address + last_octets_destination_address;
 
         const four_hex_digit_sum =
             @as(u16, @truncate(five_hex_digit_sum >> 16)) +
-            @as(u16, @truncate(five_hex_digit_sum & 0x0FFFF));
+            @as(u16, @truncate(five_hex_digit_sum & 0xFFFF));
 
         return 0xFFFF - four_hex_digit_sum;
     }
